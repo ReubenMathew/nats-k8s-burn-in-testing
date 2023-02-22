@@ -6,5 +6,9 @@
 - `docker`
 - `go`
 
-TODO: Add instructions
+TODO:
+- Add running instructions
+- update dependency list
+- explain folder config
+- create `.gitignore`
 

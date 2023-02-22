@@ -1,6 +1,5 @@
 #!/bin/bash -e
 
-
 function cleanup()
 {
   # Kill any background jobs
@@ -13,10 +12,6 @@ function cleanup()
 trap cleanup EXIT
 
 function continousUpgrade() {
-  #echo -e \
-    #"==============================================\n" \
-    #"\bInitializing Fault Injection (Rollout Restart)\n" \
-    #"\b=============================================="
   while true; do
     echo -e "\nFAULT INJECTION: rollout restart of statefulset/nats"
     # using rollout status to block until restart has completed
