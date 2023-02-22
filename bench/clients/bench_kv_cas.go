@@ -1,19 +1,23 @@
-package main
+package clients
 
 import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/schollz/progressbar/v3"
 )
 
-type Element struct {
+type BenchKVCas struct {
+	ClientName string
+}
+
+type element struct {
 	Owner string `json:"owner"`
 	Value int    `json:"value"`
 }
@@ -21,8 +25,9 @@ type Element struct {
 const KEY string = "MONITOR"
 
 const (
-	MAX_VALUE     int = 100000
-	PROCESS_COUNT int = 1000
+	CLIENT_NAME   string = "Key-Value Compare-and-Swap Load Test"
+	MAX_VALUE     int    = 10000
+	PROCESS_COUNT int    = 50
 )
 
 var (
@@ -32,8 +37,10 @@ var (
 	casFails         map[string]int
 )
 
-func main() {
-	log.SetOutput(ioutil.Discard)
+func (b *BenchKVCas) Run() {
+	fmt.Printf("Running: %s with %d Concurrent Processes\n", b.ClientName, PROCESS_COUNT)
+	defer fmt.Printf("Completed: %s\n", b.ClientName)
+
 	casFails := make(map[string]int)
 
 	servers := []string{"nats://127.0.0.1:4222"}
@@ -59,11 +66,13 @@ func main() {
 	defer js.DeleteKeyValue(kv_config.Bucket)
 
 	// initial value
-	initialValue := &Element{
+	initialValue := &element{
 		Owner: "InitialOwner",
 		Value: 1,
 	}
 	kv.Create(KEY, encode(initialValue))
+
+	bar := progressbar.Default(int64(MAX_VALUE), "Successful CAS Ops:")
 
 	// even start for N number of threads
 	processStartWg.Add(1)
@@ -119,16 +128,16 @@ func main() {
 					if prevValueElement.Value >= MAX_VALUE {
 						return
 					}
-					revision, err := processKV.Update(KEY, encode(&Element{
+					_, err = processKV.Update(KEY, encode(&element{
 						Owner: processName,
 						Value: prevValueElement.Value + 1,
 					}), prevValue.Revision())
 
 					if err != nil {
-						log.Printf("%s could not perform CAS. %v\n", processName, err)
 						casFailureCount++
 					} else {
-						log.Printf("Revision #%d created by %s", revision, processName)
+						// successful compare-and-swap
+						bar.Set(prevValueElement.Value + 1)
 					}
 				}
 			}
@@ -139,26 +148,25 @@ func main() {
 	// block until a thread reaches max value
 	wg.Wait()
 
-	// Dump CSV/TSV at end of execution
-	//file, err := os.Create("data.tsv")
-	file := os.Stdout
+	// Optional: output to TSV for analysis
+	file := ioutil.Discard
 	if err != nil {
 		log.Fatalf("failed creating file: %s\n", err)
 	}
 	fmt.Fprintf(file, "%s\t%s\n", "Process ID", "Failures")
 	for k, v := range casFails {
-		fmt.Fprintf(file, "%s\t%d\n", k, v)
+		fmt.Fprintf(file, "%s\t\t%d\n", k, v)
 	}
-	file.Close()
+	//file.Close()
 }
 
-func encode(mutation *Element) []byte {
+func encode(mutation *element) []byte {
 	data, _ := json.Marshal(mutation)
 	return data
 }
 
-func decode(byteArray []byte) Element {
-	var decodedData Element
+func decode(byteArray []byte) element {
+	var decodedData element
 	json.Unmarshal(byteArray, &decodedData)
 	return decodedData
 }

@@ -1,4 +1,4 @@
-package main
+package clients
 
 import (
 	"fmt"
@@ -8,6 +8,10 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/schollz/progressbar/v3"
 )
+
+type BenchDurablePullConsumer struct {
+	ClientName string
+}
 
 const (
 	PUBLISH_TIMEOUT  = time.Second * 30
@@ -28,7 +32,9 @@ var (
 	prevStreamMsgSeqNum uint64 = 0
 )
 
-func main() {
+func (b *BenchDurablePullConsumer) Run() {
+	fmt.Printf("Running: %s\n", b.ClientName)
+	defer fmt.Printf("Completed: %s\n", b.ClientName)
 	nc, err := nats.Connect(NATS_URL, nats.MaxReconnects(MAX_RECONNECTS), nats.ReconnectWait(RETRY_DURATION))
 	if err != nil {
 		log.Fatalln("NATS connection error", err)
@@ -81,7 +87,7 @@ func main() {
 	}
 
 	// Stream publish and consume
-	bar := progressbar.Default(MSG_COUNT)
+	bar := progressbar.Default(MSG_COUNT, "Messages:")
 	for i := 0; i < MSG_COUNT; i++ {
 		start := time.Now()
 
@@ -92,7 +98,7 @@ func main() {
 		total_rtt += int(rtt.Microseconds())
 		bar.Add(1)
 	}
-	fmt.Printf("JetStream Pull Durable Consumer Average RTT: %dµs\n", total_rtt/MSG_COUNT)
+	fmt.Printf("(Stats) JetStream Pull Durable Consumer Average RTT: %dµs\n", total_rtt/MSG_COUNT)
 
 }
 
