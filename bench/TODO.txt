@@ -1,0 +1,34 @@
+Consumer config (research)
+- deliver policy
+- ack policy
+- replay policy
+
+Durable consumers have replicas, consumer state is updated through raft
+
+if fail to pub in 30s -> fail
+if fail to consumer in 30s -> fail
+if pub msg[i] != consumed msg[i] -> fail
+
+add cli flag for timeout duration
+
+
+/**
+RESILIENT PUBLISHING
+publishNext():
+	c = time.Timer(30s)
+	for {
+		err := js.Publish("msg")
+		iferr == nil:
+			// no error
+			break
+		select {
+		case <-c.Done():
+			return Error
+		// if this was a `default`, it will execute first instead of blocking
+		case <-time.After(1s):
+			sleep for retry duration
+			// Optional: if context.Cancel() is called then all things being blocked by context channel will be released
+		case <-context
+		}
+	}
+*/

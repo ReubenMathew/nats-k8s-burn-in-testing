@@ -1,0 +1,42 @@
+nats:
+  nats:
+    image: 
+      repository: nats
+      tag: alpine
+      pullPolicy: IfNotPresent
+
+    advertise: true
+
+    jetstream:
+      enabled: true
+
+      memStorage:
+        enabled: true
+        size: "512MiB"
+
+      fileStorage:
+        enabled: true
+        size: "10Gi"
+        storageDirectory: /data/
+
+  natsbox:
+    enabled: false 
+
+  auth:
+    enabled: true
+    systemAccount: "$SYS"
+    basic:
+      accounts:
+        $SYS:
+          users:
+          - user: sys
+            pass: sys
+
+  cluster:
+    enabled: true
+    externalAccess: true
+    #noAdvertise: true
+    # Cluster name is required, by default will be release name.
+    name: "nats-in-test-cluster"
+    replicas: 5
+  
