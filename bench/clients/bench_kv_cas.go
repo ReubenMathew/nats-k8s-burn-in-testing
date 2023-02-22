@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"strings"
 	"sync"
 	"time"
 
@@ -43,8 +42,7 @@ func (b *BenchKVCas) Run() {
 
 	casFails := make(map[string]int)
 
-	servers := []string{"nats://127.0.0.1:4222"}
-	nc, err := nats.Connect(strings.Join(servers, ","))
+	nc, err := nats.Connect(NATS_URL, nats.MaxReconnects(MAX_RECONNECTS), nats.ReconnectWait(RETRY_DURATION))
 
 	if err != nil {
 		log.Fatalf("NATS Connection Error: %s\n", err)
@@ -95,7 +93,7 @@ func (b *BenchKVCas) Run() {
 			casFails[processName] = 0
 			casFailsMapMutex.Unlock()
 
-			processNC, err := nats.Connect("localhost")
+			processNC, err := nats.Connect("localhost", nats.MaxReconnects(MAX_RECONNECTS), nats.ReconnectWait(RETRY_DURATION))
 			if err != nil {
 				log.Printf("Unable to create nats connection for Process ID: %d. %v\n", processId, err)
 			}
@@ -123,6 +121,9 @@ func (b *BenchKVCas) Run() {
 				default:
 					// attempt compare-and-swap
 					prevValue, err := processKV.Get(KEY)
+					if err != nil {
+						log.Println("Error getting key from bucket", err)
+					}
 					prevValueElement := decode(prevValue.Value())
 					// terminate thread upon reaching max value and decrement WaitGroup counter by 1
 					if prevValueElement.Value >= MAX_VALUE {
