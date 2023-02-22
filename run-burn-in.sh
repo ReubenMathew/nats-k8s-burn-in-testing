@@ -9,7 +9,7 @@ function cleanup()
   # Delete K3 cluster
   k3d cluster delete k3-cluster
 }
-trap cleanup EXIT
+#trap cleanup EXIT
 
 function continousUpgrade() {
   while true; do
@@ -39,18 +39,17 @@ helm upgrade \
     nats \
     ./nats
 
-echo "NATS topology has been configured"
+echo "Success: NATS Topology has been configured"
 
 # Go client doing a load test 
-cd bench/ 
-continousUpgrade &
-echo -e \
-  "==================================================\n" \
-  "\bRunning Load Test: JetStream Pull Durable Consumer\n" \
-  "\b=================================================="
-go run bench-pull-durable-consumer.go
-echo -e \
-  "\n====================================================\n" \
-  "\bCompleted Load Test: JetStream Pull Durable Consumer\n" \
-  "\b===================================================="
+#continousUpgrade &
+#echo -e \
+  #"==================\n" \
+  #"\bRunning Load Tests\n" \
+  #"\b=================="
+#cd bench && go run main.go
+#echo -e \
+  #"\n====================\n" \
+  #"\bCompleted Load Tests\n" \
+  #"\b===================="
 

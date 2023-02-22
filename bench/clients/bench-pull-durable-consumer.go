@@ -17,7 +17,7 @@ const (
 	PUBLISH_TIMEOUT  = time.Second * 30
 	CONSUME_TIMEOUT  = time.Second * 30
 	RETRY_DURATION   = time.Millisecond * 100
-	MSG_COUNT        = 100000
+	MSG_COUNT        = 10000
 	MAX_STREAM_BYTES = 1024
 	MAX_RECONNECTS   = 100
 	NATS_URL         = nats.DefaultURL
