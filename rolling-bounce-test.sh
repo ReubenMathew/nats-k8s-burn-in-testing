@@ -7,10 +7,12 @@ K3D_CLUSTER_NAME="k3-cluster"
 HELM_CHART_CONFIG="./nats"
 HELM_CHART_NAME="nats"
 TESTS_DIR="./tests"
+TEST_FILE="durable-pull-consumer.go"
+TEST_DURATION="5m"
 
 RR_TIMEOUT="2m"
-RR_PAUSE=10 # Time between rolling restarts in seconds
-RR_INITIAL_DELAY=10 # Time before first restart in seconds
+RR_PAUSE=5 # Time between rolling restarts in seconds
+RR_INITIAL_DELAY=5 # Time before first restart in seconds
 
 function fail() {
   echo "❌ $*"
@@ -21,7 +23,9 @@ function fail() {
 
 test -f "${K3D_CLUSTER_CONFIG}" || fail "not found: ${K3D_CLUSTER_CONFIG}"
 test -d "${HELM_CHART_CONFIG}" || fail "not found: ${HELM_CHART_CONFIG}"
-test -d "bench" || fail "bench directory not found"
+test -d "${TESTS_DIR}" || fail "not found: ${TESTS_DIR}"
+test -f "${TESTS_DIR}/${TEST_FILE}" || fail "not found: ${TESTS_DIR}/${TEST_FILE}"
+
 
 # Test Docker running
 k3d node list || fail "Failed to list nodes (Docker not running?)"
@@ -84,7 +88,10 @@ function rolling_bounce() {
   done
 }
 
+# Wait for a potential previous rollouts still running
+kubectl rollout status statefulset/nats --timeout="${RR_TIMEOUT}"
+
 # Start background process
 rolling_bounce &
 
-cd bench && go run main.go || fail "Test failed"
+cd "${TESTS_DIR}" && go run "${TEST_FILE}" --duration "${TEST_DURATION}" || fail "Test failed"
