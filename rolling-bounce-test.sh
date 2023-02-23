@@ -1,5 +1,24 @@
 #!/bin/bash -e
 
+# Usage: ./rolling-bounce-test.sh
+# Depends on: Docker (running), k3d, kubectl, helm, go
+#
+# Overview:
+# 1. Checks that it's running from the expected location (relative to configuration files and tests code)
+# 2. Starts a K3D virtual cluster (unless it's already running)
+# 3. Deploy helm charts (unless it's already running)
+# 4. Forks a background tasks that continuously issues rolling restarts (via kubectl)
+# 5. Runs the test (via go run)
+# 6. Stops the background tasks issuing rolling restarts
+# 7. Take down the helm chart (unless it was already running)
+# 8. Take down the k3d cluster (unless it was already running)
+# 9. Exit with code 0 unless something failed (usually, the test)
+#
+# To iterate faster on tests, it is possible to skip steps 2 & 3 (cluster creation and helm deployment).
+# Either manually start one or the other before running the script (so that steps 7, 8 are skipped),
+# OR run with `LEAVE_CHART_UP=yes LEAVE_CLUSTER_UP=yes ./rolling-bounce-test.sh` this will provision the cluster,
+# deploy helm, but then exit without taking them down. If started this way, they need to be shut down manually.
+
 set -e
 
 K3D_CLUSTER_CONFIG="./k3d/k3-cluster.yaml"
@@ -8,11 +27,11 @@ HELM_CHART_CONFIG="./nats"
 HELM_CHART_NAME="nats"
 TESTS_DIR="./tests"
 TEST_FILE="durable-pull-consumer.go"
-TEST_DURATION="5m"
+TEST_DURATION="10m"
 
-RR_TIMEOUT="2m"
-RR_PAUSE=5 # Time between rolling restarts in seconds
-RR_INITIAL_DELAY=5 # Time before first restart in seconds
+RR_TIMEOUT="3m" # Max amount of time a rolling restart should take
+RR_PAUSE=5 # Time between rolling restarts (in seconds)
+RR_INITIAL_DELAY=5 # Time before rolling restart begins (in seconds)
 
 function fail() {
   echo "❌ $*"
