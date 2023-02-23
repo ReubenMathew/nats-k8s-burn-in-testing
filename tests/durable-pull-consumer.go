@@ -2,54 +2,35 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"log"
-	"os"
 	"time"
 )
 
-var options struct {
-	TestDuration time.Duration
-	ServerURL    string
-}
+func DurablePullConsumerTest() error {
+	const (
+		StreamName             = "test-stream"
+		StreamSubject          = "test-subject"
+		ConsumerName           = "ConsumerName"
+		ProgressUpdateInterval = 3 * time.Second
+		DefaultRetryTimeout    = 30 * time.Second
+		PublishRetryTimeout    = DefaultRetryTimeout
+		ConsumeRetryTimeout    = DefaultRetryTimeout
+		AckRetryTimeout        = DefaultRetryTimeout
+		RetryDelay             = 1 * time.Second
+		Replicas               = 3
+		ConsumerReplicas       = 3
+	)
 
-const (
-	StreamName             = "test-stream"
-	StreamSubject          = "test-subject"
-	ConsumerName           = "ConsumerName"
-	ProgressUpdateInterval = 3 * time.Second
-	DefaultRetryTimeout    = 30 * time.Second
-	PublishRetryTimeout    = DefaultRetryTimeout
-	ConsumeRetryTimeout    = DefaultRetryTimeout
-	AckRetryTimeout        = DefaultRetryTimeout
-	RetryDelay             = 1 * time.Second
-	Replicas               = 3
-	ConsumerReplicas       = 3
-)
-
-func main() {
-	flag.DurationVar(&options.TestDuration, "duration", 60*time.Second, "How long to run")
-	flag.StringVar(&options.ServerURL, "server", nats.DefaultURL, "Server URL")
-	flag.Parse()
-
-	err := run()
-	if err != nil {
-		log.Printf("Test failed: %s", err)
-		os.Exit(1)
+	type TestMessage struct {
+		// In each test iteration a message is published, consumed and acked
+		RoundNumber uint64
 	}
-	log.Printf("Test completed")
-}
 
-type TestMessage struct {
-	// In each test iteration a message is published, consumed and acked
-	RoundNumber uint64
-}
-
-func run() error {
 	log.Printf("Setting up test")
 	nc, err := nats.Connect(
+
 		options.ServerURL,
 		nats.MaxReconnects(-1),
 		nats.DisconnectErrHandler(func(*nats.Conn, error) {
