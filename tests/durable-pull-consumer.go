@@ -18,14 +18,15 @@ var options struct {
 const (
 	StreamName             = "test-stream"
 	StreamSubject          = "test-subject"
+	ConsumerName           = "ConsumerName"
 	ProgressUpdateInterval = 3 * time.Second
-	FetchMessageTimeout    = 1 * time.Second
 	DefaultRetryTimeout    = 30 * time.Second
 	PublishRetryTimeout    = DefaultRetryTimeout
 	ConsumeRetryTimeout    = DefaultRetryTimeout
 	AckRetryTimeout        = DefaultRetryTimeout
 	RetryDelay             = 1 * time.Second
 	Replicas               = 3
+	ConsumerReplicas       = 3
 )
 
 func main() {
@@ -42,12 +43,9 @@ func main() {
 }
 
 type TestMessage struct {
-	MessageId int
+	// In each test iteration a message is published, consumed and acked
+	RoundNumber uint64
 }
-
-const ConsumerName = "ConsumerName"
-
-const ConsumerReplicas = Replicas
 
 func run() error {
 	log.Printf("Setting up test")
@@ -92,8 +90,10 @@ func run() error {
 	_, err = js.AddConsumer(
 		StreamName,
 		&nats.ConsumerConfig{
-			Durable:  ConsumerName,
-			Replicas: ConsumerReplicas,
+			Durable:    ConsumerName,
+			Replicas:   ConsumerReplicas,
+			AckWait:    2 * AckRetryTimeout, // Test times out before re-delivery kicks in
+			MaxDeliver: 0,                   // Disable re-delivery
 		},
 	)
 	if err != nil {
@@ -108,7 +108,11 @@ func run() error {
 	}()
 
 	// Durable synchronous consumer
-	sub, err := js.PullSubscribe("", "", nats.Bind(StreamName, ConsumerName))
+	sub, err := js.PullSubscribe(
+		"",
+		"",
+		nats.Bind(StreamName, ConsumerName),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe: %w", err)
 	}
@@ -126,37 +130,56 @@ func run() error {
 
 	log.Printf("Starting test (running for %s or until error)", options.TestDuration)
 
+	// Track various sequence numbers for debugging
+	currentRoundNumber := uint64(0)
+	lastPublishedSequence := uint64(0)
+	lastReceivedSequence := nats.SequencePair{}
+	lastAckedSequence := nats.SequencePair{}
+
+	defer func() {
+		log.Printf("---")
+		log.Printf("Current round number number: %d", currentRoundNumber)
+		log.Printf("Last published message stream seq: %d", lastPublishedSequence)
+		log.Printf("Last consumed message seq: %+v", lastReceivedSequence)
+		log.Printf("Last ACKed message seq: %+v", lastAckedSequence)
+		log.Printf("---")
+	}()
+
 runLoop:
-	for i := 0; true; i++ {
+	for currentRoundNumber = uint64(1); true; currentRoundNumber++ {
+
 		select {
 		case <-progressTicker.C:
 			log.Printf(
 				"Sent and received %d messages in %s",
-				i,
+				currentRoundNumber,
 				time.Since(startTime).Round(1*time.Second),
 			)
 			continue runLoop
 		case <-experimentTimer.C:
 			// Timer expired, test completed
-			return nil
+			break runLoop
 		default:
-			// Continue below
+			// If neither timers fired, proceed to send/receive/ack below
 		}
 
+		// Create a message, it contains the currentRoundNumber
 		msg := nats.NewMsg(StreamSubject)
 		data, err := json.Marshal(&TestMessage{
-			MessageId: i,
+			RoundNumber: currentRoundNumber,
 		})
 		if err != nil {
 			return err
 		}
 		msg.Data = data
 
+		// Publish the message (with retries in case of error)
 		publishTimer := time.NewTimer(PublishRetryTimeout)
+		var pubAck *nats.PubAck
 
 	publishRetryLoop:
 		for {
-			_, err := js.PublishMsg(msg)
+			pubAck, err = js.PublishMsg(msg)
 			if err == nil {
 				break publishRetryLoop
 			}
@@ -169,10 +192,21 @@ runLoop:
 			case <-publishTimer.C:
 				return fmt.Errorf("timed out trying to publish (last error: %s)", err)
 			case <-time.After(RetryDelay):
-				// Try again
+				continue publishRetryLoop
 			}
 		}
 
+		if pubAck.Sequence != lastPublishedSequence+1 {
+			log.Printf(
+				"⚠️ Published sequence expected: %d actual: %d (duplicate? %v)",
+				lastPublishedSequence+1,
+				pubAck.Sequence,
+				pubAck.Duplicate,
+			)
+		}
+		lastPublishedSequence = pubAck.Sequence
+
+		// Consume (expecting to receive the message just published)
 		var nextMsg *nats.Msg
 		consumeTimer := time.NewTimer(ConsumeRetryTimeout)
 
@@ -192,20 +226,45 @@ runLoop:
 			case <-consumeTimer.C:
 				return fmt.Errorf("timed out trying to consume (last error: %s)", err)
 			case <-time.After(RetryDelay):
-				// Try again
+				continue consumeRetryLoop
 			}
 		}
 
+		// Check the message just received contains currentRoundNumber
 		received := &TestMessage{}
 		err = json.Unmarshal(nextMsg.Data, received)
 		if err != nil {
 			return err
 		}
-
-		if received.MessageId != i {
-			return fmt.Errorf("expected message %d, but received %d", i, received.MessageId)
+		msgMetadata, err := nextMsg.Metadata()
+		if err != nil {
+			return fmt.Errorf("failed to get message metadata: %w", err)
 		}
 
+		if msgMetadata.Sequence.Stream != lastReceivedSequence.Stream+1 {
+			log.Printf("⚠️ Stream sequence expected: %d, actual: %d", lastReceivedSequence.Stream+1, msgMetadata.Sequence.Stream)
+		}
+
+		if msgMetadata.Sequence.Stream != lastReceivedSequence.Consumer+1 {
+			log.Printf("⚠️ Consumer sequence expected: %d, actual: %d", lastReceivedSequence.Consumer+1, msgMetadata.Sequence.Consumer)
+		}
+
+		if received.RoundNumber != currentRoundNumber {
+			// Fail the test
+			return fmt.Errorf(
+				"expected message #%d (s:%d, c=%d), but received #%d (s:%d, c=%d)",
+				currentRoundNumber,
+				lastReceivedSequence.Stream+1,
+				lastReceivedSequence.Consumer+1,
+				received.RoundNumber,
+				msgMetadata.Sequence.Stream,
+				msgMetadata.Sequence.Consumer,
+			)
+		}
+
+		lastReceivedSequence = msgMetadata.Sequence
+
+		// Ack the message just consumed (with retries)
 		ackTimer := time.NewTimer(AckRetryTimeout)
 
 	ackRetryLoop:
@@ -223,9 +282,11 @@ runLoop:
 			case <-ackTimer.C:
 				return fmt.Errorf("timed out trying to ack (last error: %s)", err)
 			case <-time.After(RetryDelay):
-				// Try again
+				continue ackRetryLoop
 			}
 		}
+
+		lastAckedSequence = msgMetadata.Sequence
 	}
 	return nil
 }
