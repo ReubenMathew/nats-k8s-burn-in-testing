@@ -3,10 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/nats-io/nats.go"
 	"log"
 	"os"
 	"time"
+
+	"github.com/nats-io/nats.go"
 )
 
 var options struct {
@@ -30,6 +31,8 @@ func main() {
 		err = DurablePullConsumerTest()
 	case "kv-cas":
 		err = KVCas()
+	case "queue-pull-consumer":
+		err = QueuePullConsumerTest()
 	default:
 		err = fmt.Errorf("invalid test: '%s'", options.TestName)
 	}
