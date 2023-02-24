@@ -28,7 +28,8 @@ HELM_CHART_CONFIG="./nats"
 HELM_CHART_NAME="nats"
 TESTS_DIR="./tests"
 TESTS_EXE_NAME="test.exe"
-TEST_NAME="durable-pull-consumer"
+TEST_NAME="kv-cas"
+#TEST_NAME="durable-pull-consumer"
 TEST_DURATION="10m"
 
 RR_TIMEOUT="3m" # Max amount of time a rolling restart should take

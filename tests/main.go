@@ -22,10 +22,14 @@ func main() {
 	flag.StringVar(&options.TestName, "test", "", "name of test")
 	flag.Parse()
 
+	log.Printf("Launching test: %s", options.TestName)
+
 	var err error
 	switch options.TestName {
 	case "durable-pull-consumer":
 		err = DurablePullConsumerTest()
+	case "kv-cas":
+		err = KVCas()
 	default:
 		err = fmt.Errorf("invalid test: '%s'", options.TestName)
 	}
