@@ -150,11 +150,17 @@ func QueuePullConsumerTest() error {
 	log.Printf("Created %d subscribers to the delivery group\n", SubscriberCount)
 
 	var seqNumber = 1
+	startTime := time.Now()
+
+	log.Printf("Starting test (running for %s or until error)\n", options.TestDuration)
+
+	defer log.Printf("Sent and received %d messages in %s\n", seqNumber-1, time.Since(startTime).Round(1*time.Millisecond))
 
 mainRunLoop:
 	for {
 		select {
 		case <-progressTicker.C:
+			log.Printf("Sent and received %d messages in %s\n", seqNumber-1, time.Since(startTime).Round(1*time.Millisecond))
 			continue mainRunLoop
 		case <-experimentTimer.C:
 			return nil
@@ -196,7 +202,7 @@ mainRunLoop:
 					return fmt.Errorf("Expected %d but received %d by %s", prevSeqNumber, currentData.SeqNumber, currentData.SubscriberID)
 				}
 			case <-experimentTimer.C:
-				return fmt.Errorf("Experiment timed before receiving expected message with sequence number: %d", prevSeqNumber)
+				return nil
 			case <-consumeTimer.C:
 				return fmt.Errorf("Timed out expecting message with sequence number: %d", prevSeqNumber)
 			}

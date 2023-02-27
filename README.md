@@ -17,14 +17,9 @@ TODO:
 
 Tests (explicit) durable queue group consumer. 
 
-The test consists of
-
+The test creates `N` queue subscribers (each with their own connection), then runs the following loop for `M` messages
 ```
-for i in N {
-  setupQueueSubscriber (i)
-}
-
-for j in M {
+for i in M {
   publish (i)
   waitUntilConsume (i)
   verify i

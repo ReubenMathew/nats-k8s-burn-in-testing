@@ -31,7 +31,7 @@ func main() {
 		err = DurablePullConsumerTest()
 	case "kv-cas":
 		err = KVCas()
-	case "queue-pull-consumer":
+	case "queue-group-consumer":
 		err = QueuePullConsumerTest()
 	default:
 		err = fmt.Errorf("invalid test: '%s'", options.TestName)
