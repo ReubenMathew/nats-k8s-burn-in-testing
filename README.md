@@ -10,9 +10,31 @@ TODO:
 - Add running instructions
 - update dependency list
 - explain folder config
-- create `.gitignore`
 
 # Tests
+
+## `queue-group-consumer`
+
+Tests (explicit) durable queue group consumer. 
+
+The test creates `N` queue subscribers (each with their own connection), then runs the following loop for `M` messages
+```
+for i in M {
+  publish (i)
+  waitUntilConsume (i)
+  verify i
+  ack (i)
+}
+```
+
+At any given moment, there is only 1 message in-flight and should only be consumed by one subscriber. After a message is published the consumer is expected to receive it before publishing the next message.
+
+The actions of publishing and consuming are resilient to transient failures, meaning they are retried until successful.
+
+The test may fail if:
+- one of the operations is retried unsuccessfully for too long
+- a published message is not consumed within a specified amount of time
+- a previously published message is received out of order 
 
 ## `durable-pull-consumer`
 
