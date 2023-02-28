@@ -17,6 +17,15 @@ var options struct {
 	Wipe         bool
 }
 
+var testsMap map[string]func() error
+
+func registerTest(testName string, testFunc func() error) {
+	if testsMap == nil {
+		testsMap = make(map[string]func() error)
+	}
+	testsMap[testName] = testFunc
+}
+
 func main() {
 
 	flag.DurationVar(&options.TestDuration, "duration", 60*time.Second, "How long to run")
@@ -35,18 +44,13 @@ func main() {
 		}
 	}
 
+	testFunc, found := testsMap[options.TestName]
+
 	var err error
-	switch options.TestName {
-	case "durable-pull-consumer":
-		err = DurablePullConsumerTest()
-	case "kv-cas":
-		err = KVCas()
-	case "queue-group-consumer":
-		err = QueuePullConsumerTest()
-	case "add-remove-streams":
-		err = AddRemoveStreamsTest()
-	default:
+	if !found {
 		err = fmt.Errorf("invalid test: '%s'", options.TestName)
+	} else {
+		err = testFunc()
 	}
 
 	if err != nil {

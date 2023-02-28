@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+func init() {
+	registerTest("add-remove-streams", AddRemoveStreamsTest)
+}
+
 func AddRemoveStreamsTest() error {
 	const (
 		StreamNamePrefix       = "test-stream"

@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+func init() {
+	registerTest("durable-pull-consumer", DurablePullConsumerTest)
+}
+
 func DurablePullConsumerTest() error {
 	const (
 		StreamName             = "test-stream"

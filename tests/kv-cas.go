@@ -9,7 +9,11 @@ import (
 	"time"
 )
 
-func KVCas() error {
+func init() {
+	registerTest("kv-cas", KVCasTest)
+}
+
+func KVCasTest() error {
 	const (
 		BucketName             = "test-bucket"
 		ProgressUpdateInterval = 3 * time.Second
