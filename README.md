@@ -6,10 +6,19 @@
 - `docker`
 - `go`
 
-TODO:
-- Add running instructions
-- update dependency list
-- explain folder config
+# Mayhem modes
+
+Different "mayhem" modes are currently supported
+
+## `rolling_restart`
+
+Triggers rolling restart of all servers at regular intervals.
+
+This restart is gracefully rolled out by the controller, which monitors pods state and respects the disruption budget for the stateful set.
+
+## `random_reload`
+
+At random intervals, a server is randomly selected, and a configuration reload is triggered (SIGHUP).
 
 # Tests
 
