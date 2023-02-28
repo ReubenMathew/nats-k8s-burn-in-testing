@@ -169,4 +169,4 @@ kubectl rollout status statefulset/nats --timeout="${RR_TIMEOUT}"
 # Start background mayhem process
 mayhem &
 
-"${TESTS_DIR}/${TESTS_EXE_NAME}" --test "${TEST_NAME}" --duration "${TEST_DURATION}" || fail "Test failed"
+"${TESTS_DIR}/${TESTS_EXE_NAME}" --wipe --test "${TEST_NAME}" --duration "${TEST_DURATION}" || fail "Test failed"

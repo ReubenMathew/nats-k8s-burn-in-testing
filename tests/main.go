@@ -14,6 +14,7 @@ var options struct {
 	TestDuration time.Duration
 	ServerURL    string
 	TestName     string
+	Wipe         bool
 }
 
 func main() {
@@ -21,9 +22,18 @@ func main() {
 	flag.DurationVar(&options.TestDuration, "duration", 60*time.Second, "How long to run")
 	flag.StringVar(&options.ServerURL, "server", nats.DefaultURL, "Server URL")
 	flag.StringVar(&options.TestName, "test", "", "name of test")
+	flag.BoolVar(&options.Wipe, "wipe", false, "Delete all resources before starting test")
 	flag.Parse()
 
 	log.Printf("Launching test: %s", options.TestName)
+
+	if options.Wipe {
+		err := wipe()
+		if err != nil {
+			log.Printf("Failed to wipe before testing: %s", err)
+			os.Exit(1)
+		}
+	}
 
 	var err error
 	switch options.TestName {
