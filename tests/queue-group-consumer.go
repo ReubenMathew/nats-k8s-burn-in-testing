@@ -46,6 +46,7 @@ func QueuePullConsumerTest() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
+	defer nc.Close()
 
 	// Create JetStream Context
 	js, err := nc.JetStream()
@@ -70,7 +71,7 @@ func QueuePullConsumerTest() error {
 		}
 	}()
 
-	// Explicit durable queue consumer
+	// Create explicit durable queue consumer
 	_, err = js.AddConsumer(
 		StreamName,
 		&nats.ConsumerConfig{
@@ -79,133 +80,146 @@ func QueuePullConsumerTest() error {
 			DeliverGroup:   DeliverGroupName,
 			AckPolicy:      nats.AckExplicitPolicy,
 			Replicas:       ConsumerReplicas,
+			AckWait:        2 * AckRetryTimeout, // Test fails before re-delivery kicks in
+			MaxDeliver:     0,                   // Disable re-delivery
 		},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create consumer: %w", err)
 	}
 	// Delete consumer
-	defer func() error {
+	defer func() {
 		err := js.DeleteConsumer(StreamName, ConsumerName)
 		if err != nil {
-			return fmt.Errorf("failed to delete consumer: %w", err)
+			log.Printf("failed to delete consumer: %w", err)
 		}
-		return nil
 	}()
 
-	content := make(chan Message)
+	consumerConns := []*nats.Conn{}
+	consumerSubs := []*nats.Subscription{}
+	messagesCh := make(chan Message)
+	consumerErrorCh := make(chan error, SubscriberCount)
+
+	// Cleanup subscribers
+	defer func() {
+		for _, sub := range consumerSubs {
+			_ = sub.Unsubscribe()
+		}
+		for _, conn := range consumerConns {
+			conn.Close()
+		}
+	}()
+	for i := 0; i < SubscriberCount; i++ {
+		subID := fmt.Sprintf("Subscriber-%d", i)
+		conn, err := nats.Connect(
+			options.ServerURL,
+			nats.MaxReconnects(-1),
+			nats.DisconnectErrHandler(func(*nats.Conn, error) {
+				log.Printf("[%s] Disconnected", subID)
+			}),
+			nats.ReconnectHandler(func(conn *nats.Conn) {
+				log.Printf("[%s] Reconnected", subID)
+			}),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to connect: %s", err)
+		}
+
+		consumerConns = append(consumerConns, conn)
+
+		sub, err := nc.QueueSubscribe(DeliverSubjectName, DeliverGroupName, func(msg *nats.Msg) {
+			ackTimer := time.NewTimer(AckRetryTimeout)
+		ackRetryLoop:
+			for {
+				err := msg.AckSync()
+				if err == nil {
+					break ackRetryLoop
+				}
+
+				log.Printf("Ack error: %s", err)
+
+				select {
+				case <-ackTimer.C:
+					consumerErrorCh <- fmt.Errorf("timeout trying to ack: %s", err)
+				case <-time.After(RetryDelay):
+					// Try again
+				}
+			}
+
+			var recvMsg Message
+			unmarshalOrPanic(msg.Data, &recvMsg)
+			recvMsg.SubscriberID = subID
+			messagesCh <- recvMsg
+		})
+
+		consumerSubs = append(consumerSubs, sub)
+	}
+	log.Printf("Created %d subscribers for group %s", SubscriberCount, DeliverGroupName)
+
 	progressTicker := time.NewTicker(ProgressUpdateInterval)
 	experimentTimer := time.NewTimer(options.TestDuration)
 
-	for i := 0; i < SubscriberCount; i++ {
-		subscriberID := fmt.Sprintf("Subscriber-%d", i)
-		go func(id int) {
-			nc, err := nats.Connect(
-				options.ServerURL,
-				nats.MaxReconnects(-1),
-				nats.DisconnectErrHandler(func(*nats.Conn, error) {
-					log.Printf("Disconnected")
-				}),
-				nats.ReconnectHandler(func(conn *nats.Conn) {
-					log.Printf("Reconnected")
-				}),
-			)
-			if err != nil {
-				log.Fatalf("failed to connect: %v", err)
-			}
-
-			_, err = nc.QueueSubscribe(DeliverSubjectName, DeliverGroupName, func(msg *nats.Msg) {
-				ackTimer := time.NewTimer(AckRetryTimeout)
-			ackRetryLoop:
-				for {
-					err := msg.AckSync()
-					if err == nil {
-						break ackRetryLoop
-					}
-
-					log.Printf("Ack error: %s", err)
-
-					select {
-					case <-experimentTimer.C:
-						return
-					case <-ackTimer.C:
-						log.Fatalf("timed out trying to ack (last error: %s)", err)
-					case <-time.After(RetryDelay):
-						// Try again
-					}
-				}
-
-				var recvMsg Message
-				unmarshalOrPanic(msg.Data, &recvMsg)
-				recvMsg.SubscriberID = subscriberID
-				content <- recvMsg
-				log.Printf("Received #%d by %s", recvMsg.SeqNumber, subscriberID)
-			})
-
-			if err != nil {
-				log.Printf("Could not initialize QueueSubscriber-%d %v\n", id, err)
-			}
-		}(i)
-	}
-	log.Printf("Created %d subscribers to the delivery group\n", SubscriberCount)
-
-	var seqNumber = 1
 	startTime := time.Now()
 
-	log.Printf("Starting test (running for %s or until error)\n", options.TestDuration)
-
-	defer log.Printf("Sent and received %d messages in %s\n", seqNumber-1, time.Since(startTime).Round(1*time.Millisecond))
+	log.Printf("Starting test (running for %s or until error)", options.TestDuration)
 
 mainRunLoop:
-	for {
+	for seqNumber := 1; true; seqNumber++ {
 		select {
 		case <-progressTicker.C:
-			log.Printf("Sent and received %d messages in %s\n", seqNumber-1, time.Since(startTime).Round(1*time.Millisecond))
+			log.Printf("Sent and received %d messages in %s\n", seqNumber-1, time.Since(startTime).Round(1*time.Second))
 			continue mainRunLoop
 		case <-experimentTimer.C:
 			return nil
 		default:
-			// publish
-			publishTimer := time.NewTimer(PublishRetryTimeout)
-		publishRetryLoop:
-			for {
-				msg := nats.NewMsg(StreamSubject)
-				data := marshalOrPanic(&Message{
-					SubscriberID: "",
-					SeqNumber:    seqNumber,
-				})
-				msg.Data = data
-				msg.Subject = StreamSubject
+			// continue below with publish and wait for delivery
+		}
 
-				_, err = js.PublishMsg(msg)
-				if err == nil {
-					log.Printf("Published #%d\n", seqNumber)
-					seqNumber++
-					break publishRetryLoop
-				}
-				select {
-				case <-experimentTimer.C:
-					return nil
-				case <-publishTimer.C:
-					return fmt.Errorf("timed out trying to publish %w", err)
-				case <-time.After(RetryDelay):
-					// retry publish
-				}
+		msg := nats.NewMsg(StreamSubject)
+		data := marshalOrPanic(&Message{
+			SubscriberID: "",
+			SeqNumber:    seqNumber,
+		})
+		msg.Data = data
+		msg.Subject = StreamSubject
+
+		publishTimer := time.NewTimer(PublishRetryTimeout)
+
+	publishRetryLoop:
+		for {
+			_, err = js.PublishMsg(msg)
+			if err == nil {
+				break publishRetryLoop
 			}
-
-			// block until message has been consumed or a timer has expired
-			prevSeqNumber := seqNumber - 1
-			consumeTimer := time.NewTimer(ConsumeTimeout)
 			select {
-			case currentData := <-content:
-				if currentData.SeqNumber != prevSeqNumber {
-					return fmt.Errorf("Expected %d but received %d by %s", prevSeqNumber, currentData.SeqNumber, currentData.SubscriberID)
-				}
 			case <-experimentTimer.C:
 				return nil
-			case <-consumeTimer.C:
-				return fmt.Errorf("Timed out expecting message with sequence number: %d", prevSeqNumber)
+			case <-publishTimer.C:
+				return fmt.Errorf("timed out trying to publish %w", err)
+			case <-time.After(RetryDelay):
+				// retry publish
 			}
 		}
+
+		// Wait until one of the subscribers delivers message via channel
+		consumeTimer := time.NewTimer(ConsumeTimeout)
+		select {
+		case nextMessage := <-messagesCh:
+			if nextMessage.SeqNumber != seqNumber {
+				return fmt.Errorf(
+					"expected %d but received %d from %s",
+					seqNumber,
+					nextMessage.SeqNumber,
+					nextMessage.SubscriberID,
+				)
+			}
+		case consumerError := <-consumerErrorCh:
+			return fmt.Errorf("consumer fatal error: %s", consumerError)
+		case <-experimentTimer.C:
+			return nil
+		case <-consumeTimer.C:
+			return fmt.Errorf("timed out waitinf for message %d", seqNumber)
+		}
 	}
+	return nil
 }
