@@ -15,15 +15,14 @@ TODO:
 
 ## `queue-group-consumer`
 
-Tests (explicit) durable queue group consumer. 
+Tests (explicit) durable queue group with `N` consumer (on separate connections). 
 
-The test creates `N` queue subscribers (each with their own connection), then runs the following loop for `M` messages
+The test consists of:
+
 ```
 for i in M {
   publish (i)
-  waitUntilConsume (i)
-  verify i
-  ack (i)
+  waitUntilConsumedAndAcked (i)
 }
 ```
 
@@ -40,7 +39,7 @@ The test may fail if:
 
 Tests durable consumer on a replicated stream.
 
-The test consists of 
+The test consists of:
 
 ```
 for i in N {
@@ -64,7 +63,7 @@ The test may fail if:
 
 Tests consistency on a replicated KeyValue.
 
-The test consists of
+The test consists of:
 
 ```
 for i in N {

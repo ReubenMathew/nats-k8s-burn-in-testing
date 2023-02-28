@@ -35,6 +35,7 @@ TESTS_EXE_NAME="test.exe"
 # Test options:
 # TEST_NAME="kv-cas"
 TEST_NAME="durable-pull-consumer"
+# TEST_NAME="queue-group-consumer"
 TEST_DURATION="3m"
 
 # Mayhem options:
