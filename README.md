@@ -20,6 +20,11 @@ This restart is gracefully rolled out by the controller, which monitors pods sta
 
 At random intervals, a server is randomly selected, and a configuration reload is triggered (SIGHUP).
 
+## `random_hard_kill`
+
+At random intervals, a server is randomly selected and killed with SIGKILL.
+
+
 # Tests
 
 ## `queue-group-consumer`
