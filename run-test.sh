@@ -36,6 +36,7 @@ TESTS_EXE_NAME="test.exe"
 # TEST_NAME="kv-cas"
 TEST_NAME="durable-pull-consumer"
 # TEST_NAME="queue-group-consumer"
+# TEST_NAME="add-remove-streams"
 TEST_DURATION="3m"
 
 # Mayhem options:

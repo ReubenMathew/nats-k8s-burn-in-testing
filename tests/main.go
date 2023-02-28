@@ -33,6 +33,8 @@ func main() {
 		err = KVCas()
 	case "queue-group-consumer":
 		err = QueuePullConsumerTest()
+	case "add-remove-streams":
+		err = AddRemoveStreamsTest()
 	default:
 		err = fmt.Errorf("invalid test: '%s'", options.TestName)
 	}
