@@ -8,6 +8,10 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+func init() {
+	registerTest("queue-group-consumer", QueuePullConsumerTest)
+}
+
 func QueuePullConsumerTest() error {
 	const (
 		DeliverGroupName       = "test-group"

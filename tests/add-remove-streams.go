@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"log"
@@ -8,6 +9,10 @@ import (
 	"reflect"
 	"time"
 )
+
+func init() {
+	registerTest("add-remove-streams", AddRemoveStreamsTest)
+}
 
 func AddRemoveStreamsTest() error {
 	const (
@@ -164,11 +169,14 @@ runLoop:
 				panic("Bug in random stream selection")
 			}
 
+			isFirstAttempt := true
 		deleteRetryLoop:
 			for {
 				// Delete the stream
 				err := js.DeleteStream(streamName)
-				if err == nil {
+				if err == nil ||
+					// A previous attempt may have returned error or timeout, while actually successful
+					(!isFirstAttempt && errors.Is(nats.ErrStreamNotFound, err)) {
 					delete(expectedStreamsMap, streamName)
 					deletedStreams += 1
 					break deleteRetryLoop
@@ -182,6 +190,7 @@ runLoop:
 				case <-t.C:
 					return fmt.Errorf("timed out trying to delete stream (last error: %s)", err)
 				case <-time.After(RetryDelay):
+					isFirstAttempt = false
 					continue deleteRetryLoop
 				}
 			}

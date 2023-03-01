@@ -31,18 +31,20 @@ HELM_CHART_CONFIG="./nats"
 HELM_CHART_NAME="nats"
 TESTS_DIR="./tests"
 TESTS_EXE_NAME="test.exe"
+CLUSTER_SIZE=5
 
 # Test options:
 # TEST_NAME="kv-cas"
-TEST_NAME="durable-pull-consumer"
+# TEST_NAME="durable-pull-consumer"
 # TEST_NAME="queue-group-consumer"
-# TEST_NAME="add-remove-streams"
+TEST_NAME="add-remove-streams"
 TEST_DURATION="3m"
 
 # Mayhem options:
 MAYHEM_START_DELAY=5 # Time before rolling restart begins (in seconds)
-MAYHEM_FUNCTION='rolling_restart'
+# MAYHEM_FUNCTION='rolling_restart'
 # MAYHEM_FUNCTION='random_reload'
+MAYHEM_FUNCTION='random_hard_kill'
 
 function fail()
 {
@@ -90,7 +92,6 @@ function rolling_restart() {
 }
 
 # Mayhem function random_reload randomly triggers a config reload on one of the servers
-CLUSTER_SIZE=5
 MIN_RELOAD_DELAY=0 # Minimum time between reloads
 MAX_RELOAD_DELAY=10 # Maximum time between reloads
 function random_reload() {
@@ -99,6 +100,22 @@ function random_reload() {
     RANDOM_DELAY="$(( (${RANDOM} % (${MAX_RELOAD_DELAY} - ${MIN_RELOAD_DELAY})) + ${MIN_RELOAD_DELAY} ))"
     echo "🐵 Trigger config reload of ${RANDOM_POD}"
     kubectl exec "pod/${RANDOM_POD}" -c nats quiet -- sh -c 'kill -SIGHUP $(cat /var/run/nats/nats.pid)'
+    sleep "${RANDOM_DELAY}"
+  done
+}
+
+
+# Mayhem function random_hard_kill randomly kills (SIGKILL) one of the servers
+MIN_TIME_BETWEEN_HARD_KILL=1 # Minimum time between kills
+MAX_TIME_BETWEEN_HARD_KILL=10 # Maximum time between kills
+function random_hard_kill() {
+  while true; do
+    RANDOM_POD="nats-$(( ${RANDOM} % ${CLUSTER_SIZE} ))"
+    RANDOM_DELAY="$(( (${RANDOM} % (${MAX_TIME_BETWEEN_HARD_KILL} - ${MIN_TIME_BETWEEN_HARD_KILL})) + ${MIN_TIME_BETWEEN_HARD_KILL} ))"
+    echo "🐵 Killing ${RANDOM_POD} (sigkill)"
+    kubectl exec "pod/${RANDOM_POD}" -c nats quiet -- sh -c 'kill -9 $(cat /var/run/nats/nats.pid)' || echo "Failed to kill ${RANDOM_POD}"
+    # TODO: wait for all pods to be running again using
+    #       `kubectl get pods  --field-selector status.phase!="Running"`
     sleep "${RANDOM_DELAY}"
   done
 }
@@ -152,4 +169,4 @@ kubectl rollout status statefulset/nats --timeout="${RR_TIMEOUT}"
 # Start background mayhem process
 mayhem &
 
-"${TESTS_DIR}/${TESTS_EXE_NAME}" --test "${TEST_NAME}" --duration "${TEST_DURATION}" || fail "Test failed"
+"${TESTS_DIR}/${TESTS_EXE_NAME}" --wipe --test "${TEST_NAME}" --duration "${TEST_DURATION}" || fail "Test failed"
