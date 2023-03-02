@@ -25,6 +25,10 @@ At random intervals, a server is randomly selected, and a configuration reload i
 At random intervals, a server is randomly selected and killed with SIGKILL.
 
 
+## `none`
+
+Does not cause any mayhem
+
 # Tests
 
 ## `queue-group-consumer`

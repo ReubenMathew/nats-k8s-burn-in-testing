@@ -79,6 +79,12 @@ function mayhem()
   "${MAYHEM_FUNCTION}"
 }
 
+function none()
+{
+  # NOOP mayhem function
+  echo
+}
+
 # Mayhem function rolling_restart restarts all pods (in order) via 'rollout' command
 RR_TIMEOUT="3m" # Max amount of time a rolling restart should take
 RR_PAUSE=5 # Time between rolling restarts (in seconds)
