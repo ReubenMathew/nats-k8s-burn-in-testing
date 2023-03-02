@@ -9,6 +9,11 @@ ports:
 - port: 4222:4222
   nodeFilters:
   - loadbalancer
+registries:
+  create:
+    name: nats.working.registry
+    host: "0.0.0.0"
+    hostPort: "5001"
 options:
   k3s:
     extraArgs:
