@@ -47,6 +47,7 @@ MAYHEM_START_DELAY=5 # Time before rolling restart begins (in seconds)
 # MAYHEM_FUNCTION='none'
 # MAYHEM_FUNCTION='rolling_restart'
 # MAYHEM_FUNCTION='random_reload'
+# MAYHEM_FUNCTION='random_hard_kill'
 # MAYHEM_FUNCTION='network_chaos'
 # MAYHEM_FUNCTION='slow_network'
 MAYHEM_FUNCTION='lossy_network'
