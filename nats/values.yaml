@@ -1,4 +1,11 @@
 nats:
+  exporter:
+    # prometheus exporter sidecar
+    enabled: false
+  reloader:
+    # config reloader sidecar
+    enabled: false
+
   nats:
     image: 
       repository: nats
@@ -40,3 +47,13 @@ nats:
     name: "nats-in-test-cluster"
     replicas: 5
   
+  additionalContainers:
+  - name: netshoot
+    image: nicolaka/netshoot
+    securityContext:
+      capabilities:
+        add:
+        - NET_ADMIN
+    command: ["/bin/sh", "-ec"]
+    args: ["ping localhost"]
+
