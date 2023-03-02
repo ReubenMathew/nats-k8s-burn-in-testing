@@ -35,16 +35,16 @@ CLUSTER_SIZE=5
 
 # Test options:
 # TEST_NAME="kv-cas"
-# TEST_NAME="durable-pull-consumer"
+ TEST_NAME="durable-pull-consumer"
 # TEST_NAME="queue-group-consumer"
-TEST_NAME="add-remove-streams"
+#TEST_NAME="add-remove-streams"
 TEST_DURATION="3m"
 
 # Mayhem options:
 MAYHEM_START_DELAY=5 # Time before rolling restart begins (in seconds)
 # MAYHEM_FUNCTION='rolling_restart'
 # MAYHEM_FUNCTION='random_reload'
-MAYHEM_FUNCTION='random_hard_kill'
+MAYHEM_FUNCTION='network_chaos'
 
 function fail()
 {
@@ -104,6 +104,57 @@ function random_reload() {
   done
 }
 
+# Mayhem function network_chaos will apply netem traffic control manipulations to the network interface of each pod for a specific duration
+SIDECAR_CONTAINER_NAME="netshoot"
+# Used for reseting network interface in between tc manipulations
+TC_RESET_COMMAND="tc qdisc delete dev eth0 root"
+# Current example below will cause:
+# 1. 3% of packets to be randomly dropped for 15 seconds
+# 2. adds 50ms delay (100ms RTT) with a 5ms jitter with a normal distribution for 45 seconds
+# 3. adds 100ms delay (200ms RTT) with a 10ms jitter with a normal distribution for 60 seconds
+TC_MANIPULATION_LIST=(
+  "tc qdisc add dev eth0 root netem loss 3%"
+  "tc qdisc add dev eth0 root netem delay 50ms 5ms distribution normal"
+  "tc qdisc add dev eth0 root netem delay 100ms 10ms distribution normal"
+  )
+TC_MANIPULATION_DURATION_LIST=(
+  15
+  45
+  60
+  )
+function network_chaos() {
+  # helper function to run kubectl exec on netshoot containers within every pod
+  function exec_all_pods() {
+    exec_command=$1
+    pod_names=$(kubectl get pods --no-headers -o custom-columns=:metadata.name)
+    for pod_name in $pod_names
+    do
+      echo "${pod_name}: ${exec_command}"
+      kubectl exec $pod_name -c $SIDECAR_CONTAINER_NAME -- $exec_command
+    done
+  }
+
+  for i in ${!TC_MANIPULATION_LIST[@]}; do
+    tc_manipulation="${TC_MANIPULATION_LIST[$i]}"
+    tc_manipulation_duration=${TC_MANIPULATION_DURATION_LIST[$i]}
+
+    echo "Applying [${tc_manipulation}] to all pods for ${tc_manipulation_duration} seconds"
+    exec_all_pods "${tc_manipulation}"
+    sleep $tc_manipulation_duration
+    echo "Resetting network interface for all pods"
+    exec_all_pods "${TC_RESET_COMMAND}"
+  done
+
+}
+
+function exec_all_pods() {
+  exec_command=$1
+  pod_names=$(kubectl get pods --no-headers -o custom-columns=:metadata.name)
+  for pod_name in $pod_names
+  do
+    kubectl exec $pod_name -c $SIDECAR_CONTAINER_NAME -- sh -ec $exec_command
+  done
+}
 
 # Mayhem function random_hard_kill randomly kills (SIGKILL) one of the servers
 MIN_TIME_BETWEEN_HARD_KILL=1 # Minimum time between kills
