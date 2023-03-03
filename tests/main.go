@@ -11,10 +11,12 @@ import (
 )
 
 var options struct {
-	TestDuration time.Duration
-	ServerURL    string
-	TestName     string
-	Wipe         bool
+	TestDuration  time.Duration
+	ServerURL     string
+	TestName      string
+	Wipe          bool
+	SkipCleanup   bool
+	CleanupFailed bool
 }
 
 var testsMap map[string]func() error
@@ -32,10 +34,13 @@ func main() {
 	flag.StringVar(&options.ServerURL, "server", nats.DefaultURL, "Server URL")
 	flag.StringVar(&options.TestName, "test", "", "name of test")
 	flag.BoolVar(&options.Wipe, "wipe", false, "Delete all resources before starting test")
+	flag.BoolVar(&options.SkipCleanup, "no-cleanup", false, "Skip deleting all resources after successful test")
+	flag.BoolVar(&options.CleanupFailed, "cleanup-failed", false, "Delete all resources after a failed test")
 	flag.Parse()
 
 	log.Printf("Launching test: %s", options.TestName)
 
+	// Wipe before test
 	if options.Wipe {
 		err := wipe()
 		if err != nil {
@@ -55,7 +60,21 @@ func main() {
 
 	if err != nil {
 		log.Printf("Test %s failed: %s", options.TestName, err)
+		if options.CleanupFailed {
+			err := wipe()
+			if err != nil {
+				log.Printf("Failed to wipe after failed testing: %s", err)
+			}
+		}
 		os.Exit(1)
+	}
+
+	// Wipe after successful test
+	if !options.SkipCleanup {
+		err := wipe()
+		if err != nil {
+			log.Printf("Failed to wipe after successful testing: %s", err)
+		}
 	}
 
 	log.Printf("Test %s completed", options.TestName)

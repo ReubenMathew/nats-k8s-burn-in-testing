@@ -67,13 +67,6 @@ func QueuePullConsumerTest() error {
 	if err != nil {
 		return fmt.Errorf("failed to create stream: %w", err)
 	}
-	// Delete stream
-	defer func() {
-		err := js.DeleteStream(StreamName)
-		if err != nil {
-			log.Printf("Could not delete stream %s. %v\n", StreamName, err)
-		}
-	}()
 
 	// Create explicit durable queue consumer
 	_, err = js.AddConsumer(
@@ -91,13 +84,6 @@ func QueuePullConsumerTest() error {
 	if err != nil {
 		return fmt.Errorf("failed to create consumer: %w", err)
 	}
-	// Delete consumer
-	defer func() {
-		err := js.DeleteConsumer(StreamName, ConsumerName)
-		if err != nil {
-			log.Printf("failed to delete consumer: %w", err)
-		}
-	}()
 
 	consumerConns := []*nats.Conn{}
 	consumerSubs := []*nats.Subscription{}
@@ -113,6 +99,7 @@ func QueuePullConsumerTest() error {
 			conn.Close()
 		}
 	}()
+
 	for i := 0; i < SubscriberCount; i++ {
 		subID := fmt.Sprintf("Subscriber-%d", i)
 		conn, err := nats.Connect(

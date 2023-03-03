@@ -60,13 +60,6 @@ func KVCasTest() error {
 	if err != nil {
 		return err
 	}
-	// Delete bucket
-	defer func() {
-		err := js.DeleteKeyValue(BucketName)
-		if err != nil {
-			log.Printf("Could not delete bucket %s: %s\n", BucketName, err)
-		}
-	}()
 
 	keys := []string{"k1", "k2", "k3"}
 	expectedValuesMap := make(map[string]*TestValue)
