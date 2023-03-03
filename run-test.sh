@@ -51,6 +51,7 @@ MAYHEM_FUNCTION='network_chaos'
 
 # Docker image options:
 USE_LOCAL_IMAGE=false
+LOCAL_NATS_SERVER_REPO="../nats-server"
 
 function fail()
 {
@@ -91,12 +92,18 @@ function cleanup()
   fi
 }
 
+
+NATS_LOCAL_IMAGE="localhost:5001/nats:local"
 function load_latest_nats_image() {
   docker pull nats:latest
-  docker tag nats:latest localhost:5001/nats:local
-  docker push localhost:5001/nats:local
+  docker tag nats:latest $NATS_LOCAL_IMAGE
+  docker push $NATS_LOCAL_IMAGE
 }
 
+function build_local_nats_image() {
+  docker build $LOCAL_NATS_SERVER_REPO -f ./Dockerfile -t $NATS_LOCAL_IMAGE
+  docker push $NATS_LOCAL_IMAGE
+}
 
 function mayhem()
 {
@@ -261,11 +268,12 @@ fi
 
 echo "Use Local Docker Image? ${USE_LOCAL_IMAGE}"
 # Load NATS docker image
-if [ "$USE_LOCAL_IMAGE" = true]; then
+if [[ "$USE_LOCAL_IMAGE" = true ]] ; then
   # TODO: pass the nats-server path and build a local docker image
-  echo "Building local NATS image"
+  echo "Using local nats image built from ${LOCAL_NATS_SERVER_REPO}"
+  build_local_nats_image
 else
-  echo "Pulling nats:latest from dockerhub"
+  echo "Pulling nats:latest from Dockerhub"
   load_latest_nats_image
 fi
 

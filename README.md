@@ -5,6 +5,17 @@
 - `kubectl`
 - `docker`
 - `go`
+- `helm`
+
+# Using a locally built `nats-server` image
+The included helm chart pulls a `nats-server` image from a locally created registry. By default, this image is `nats:latest` found on [Dockerhub](https://hub.docker.com/_/nats). The `nats:latest` image is pulled, re-tagged and pushed to the local image registry, provisioned by K3D.
+
+Modifying the `USE_LOCAL_IMAGE` value in `./run-test.sh` will instead build the `nats-server` image from source and push it to the local registry for helm to use instead. The path location of your `nats-server` repository can be modified through the `LOCAL_NATS_SERVER_REPO` value (also found in `./run-test.sh`). 
+
+## Instructions
+1. Clone `nats-server` onto your machine
+2. Enable `USE_LOCAL_IMAGE` in `./run-test.sh`
+3. Change the value of `LOCAL_NATS_SERVER_REPO` to where you cloned the `nats-server` repository
 
 # Mayhem modes
 
