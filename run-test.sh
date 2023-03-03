@@ -47,7 +47,6 @@ MAYHEM_START_DELAY=5 # Time before rolling restart begins (in seconds)
 # MAYHEM_FUNCTION='none'
 # MAYHEM_FUNCTION='rolling_restart'
 # MAYHEM_FUNCTION='random_reload'
-# MAYHEM_FUNCTION='random_hard_kill'
 # MAYHEM_FUNCTION='network_chaos'
 # MAYHEM_FUNCTION='slow_network'
 MAYHEM_FUNCTION='lossy_network'
@@ -57,6 +56,10 @@ MAYHEM_FUNCTION='lossy_network'
 for (( i = 0; i < ${CLUSTER_SIZE}; i++ )); do
   POD_NAMES="${POD_NAMES} ${POD_PREFIX}${i}"
 done
+
+# Docker image options:
+USE_LOCAL_IMAGE=false
+LOCAL_NATS_SERVER_REPO="../nats-server"
 
 function fail()
 {
@@ -95,6 +98,19 @@ function cleanup()
   else
     k3d cluster delete "${K3D_CLUSTER_NAME}"
   fi
+}
+
+
+NATS_LOCAL_IMAGE="localhost:5001/nats:local"
+function load_latest_nats_image() {
+  docker pull nats:latest
+  docker tag nats:latest $NATS_LOCAL_IMAGE
+  docker push $NATS_LOCAL_IMAGE
+}
+
+function build_local_nats_image() {
+  docker build $LOCAL_NATS_SERVER_REPO -f ./Dockerfile -t $NATS_LOCAL_IMAGE
+  docker push $NATS_LOCAL_IMAGE
 }
 
 function mayhem()
@@ -204,6 +220,17 @@ if k3d cluster get "${K3D_CLUSTER_NAME}"; then
   export LEAVE_CLUSTER_UP="true"
 else
   k3d cluster create --config ${K3D_CLUSTER_CONFIG}
+fi
+
+echo "Use Local Docker Image? ${USE_LOCAL_IMAGE}"
+# Load NATS docker image
+if [[ "$USE_LOCAL_IMAGE" = true ]] ; then
+  # TODO: pass the nats-server path and build a local docker image
+  echo "Using local nats image built from ${LOCAL_NATS_SERVER_REPO}"
+  build_local_nats_image
+else
+  echo "Pulling nats:latest from Dockerhub"
+  load_latest_nats_image
 fi
 
 if helm status "${HELM_CHART_NAME}"; then

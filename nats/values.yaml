@@ -8,8 +8,9 @@ nats:
 
   nats:
     image: 
+      registry: nats.working.registry:5001
       repository: nats
-      tag: alpine
+      tag: local 
       pullPolicy: IfNotPresent
 
     advertise: true
