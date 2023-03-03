@@ -64,13 +64,6 @@ func DurablePullConsumerTest() error {
 	if err != nil {
 		return fmt.Errorf("failed to create stream: %w", err)
 	}
-	// Delete stream
-	defer func() {
-		err := js.DeleteStream(StreamName)
-		if err != nil {
-			log.Printf("Could not delete stream %s. %v\n", StreamName, err)
-		}
-	}()
 
 	_, err = js.AddConsumer(
 		StreamName,
@@ -84,13 +77,6 @@ func DurablePullConsumerTest() error {
 	if err != nil {
 		return fmt.Errorf("failed to create consumer: %w", err)
 	}
-	// Delete consumer
-	defer func() {
-		err := js.DeleteConsumer(StreamName, ConsumerName)
-		if err != nil {
-			return
-		}
-	}()
 
 	// Durable synchronous consumer
 	sub, err := js.PullSubscribe(
@@ -101,6 +87,7 @@ func DurablePullConsumerTest() error {
 	if err != nil {
 		return fmt.Errorf("failed to subscribe: %w", err)
 	}
+
 	// Unsubscribe
 	defer func(sub *nats.Subscription) {
 		err := sub.Unsubscribe()

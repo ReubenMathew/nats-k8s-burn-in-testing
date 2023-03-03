@@ -24,6 +24,17 @@ At random intervals, a server is randomly selected, and a configuration reload i
 
 At random intervals, a server is randomly selected and killed with SIGKILL.
 
+## `slow_network`
+
+Configures traffic shaping rules to simulate network latency between servers
+
+## `lossy_network`
+
+Configures traffic shaping rules to simulate network packet loss between servers
+
+## `none`
+
+Does not cause any mayhem
 
 # Tests
 

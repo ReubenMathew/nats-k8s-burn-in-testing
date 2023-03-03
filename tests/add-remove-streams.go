@@ -77,16 +77,6 @@ func AddRemoveStreamsTest() error {
 	// Values in this map are not used, i.e. it is just a set of stream names.
 	expectedStreamsMap := map[string]bool{}
 
-	// Cleanup created streams (best effort, may fail)
-	defer func() {
-		for name, _ := range expectedStreamsMap {
-			err := js.DeleteStream(name)
-			if err != nil {
-				log.Printf("Failed to delete stream: %s: %s", name, err)
-			}
-		}
-	}()
-
 runLoop:
 	for currentRoundNumber = uint64(1); true; currentRoundNumber++ {
 
