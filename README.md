@@ -1,55 +1,55 @@
 # K8s NATS Burn-in Testing
 
-### Requirements
+## Requirements
 - `k3d`
 - `kubectl`
 - `docker`
 - `go`
 - `helm`
 
-# Using a locally built `nats-server` image
+## Using a locally built `nats-server` image
 The included helm chart pulls a `nats-server` image from a locally created registry. By default, this image is `nats:latest` found on [Dockerhub](https://hub.docker.com/_/nats). The `nats:latest` image is pulled, re-tagged and pushed to the local image registry, provisioned by K3D.
 
 Modifying the `USE_LOCAL_IMAGE` value in `./run-test.sh` will instead build the `nats-server` image from source and push it to the local registry for helm to use instead. The path location of your `nats-server` repository can be modified through the `LOCAL_NATS_SERVER_REPO` value (also found in `./run-test.sh`). 
 
-## Instructions
+### Instructions
 1. Clone `nats-server` onto your machine
 2. Enable `USE_LOCAL_IMAGE` in `./run-test.sh`
 3. Change the value of `LOCAL_NATS_SERVER_REPO` to where you cloned the `nats-server` repository
 
-# Mayhem modes
+## Mayhem modes
 
 Different "mayhem" modes are currently supported
 
-## `rolling_restart`
+### `rolling_restart`
 
 Triggers rolling restart of all servers at regular intervals.
 
 This restart is gracefully rolled out by the controller, which monitors pods state and respects the disruption budget for the stateful set.
 
-## `random_reload`
+### `random_reload`
 
 At random intervals, a server is randomly selected, and a configuration reload is triggered (SIGHUP).
 
-## `random_hard_kill`
+### `random_hard_kill`
 
 At random intervals, a server is randomly selected and killed with SIGKILL.
 
-## `slow_network`
+### `slow_network`
 
 Configures traffic shaping rules to simulate network latency between servers
 
-## `lossy_network`
+### `lossy_network`
 
 Configures traffic shaping rules to simulate network packet loss between servers
 
-## `none`
+### `none`
 
 Does not cause any mayhem
 
-# Tests
+## Tests
 
-## `queue-group-consumer`
+### `queue-group-consumer`
 
 Tests (explicit) durable queue group with `N` consumer (on separate connections).
 
@@ -71,7 +71,7 @@ The test may fail if:
 - a published message is not consumed within a specified amount of time
 - a previously published message is received out of order
 
-## `durable-pull-consumer`
+### `durable-pull-consumer`
 
 Tests durable consumer on a replicated stream.
 
@@ -95,7 +95,7 @@ The test may fail if:
  - one of the operations is retried unsuccessfully for too long
  - the message received does not match the message published last
 
-## `kv-cas`
+### `kv-cas`
 
 Tests consistency on a replicated KeyValue.
 
@@ -117,7 +117,7 @@ The test may fail if:
 - the value retrieved does not match the value committed last
 - an operation keeps failing for too long
 
-## `add-remove-streams`
+### `add-remove-streams`
 
 Test adding and removing replicated streams.
 
