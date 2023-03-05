@@ -1,6 +1,11 @@
 # K8s NATS Burn-in Testing
+A testing set of `nats-server` workloads running against a variety of failure modes in a Kubernetes environment. 
+
+## File Structure Explanation
+<!--TODO: File structure explanation, point out important fconfig files that can be changed -->
 
 ## Requirements
+<!--TODO: Add links or install instructions for some tools-->
 - `k3d`
 - `kubectl`
 - `docker`
@@ -18,8 +23,7 @@ Modifying the `USE_LOCAL_IMAGE` value in `./run-test.sh` will instead build the 
 3. Change the value of `LOCAL_NATS_SERVER_REPO` to where you cloned the `nats-server` repository
 
 ## Mayhem modes
-
-Different "mayhem" modes are currently supported
+<!--TODO: Add mayhem mode description-->
 
 ### `rolling_restart`
 
@@ -48,6 +52,7 @@ Configures traffic shaping rules to simulate network packet loss between servers
 Does not cause any mayhem
 
 ## Tests
+<!--TODO: Add description for what the purpose of a client test workload is doing-->
 
 ### `queue-group-consumer`
 
