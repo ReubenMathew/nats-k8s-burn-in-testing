@@ -19,7 +19,7 @@
 #
 # To iterate faster on tests, it is possible to skip steps 2 & 3 (cluster creation and helm deployment).
 # Either manually start one or the other before running the script (so that steps 7, 8 are skipped),
-# OR run with `LEAVE_CHART_UP=yes LEAVE_CLUSTER_UP=yes ./rolling-bounce-test.sh` this will provision the cluster,
+# OR run with `LEAVE_CHART_UP=yes LEAVE_CLUSTER_UP=yes ./run-test.sh` this will provision the cluster,
 # deploy helm, but then exit without taking them down. If started this way, they need to be shut down manually.
 
 set -e
@@ -58,8 +58,10 @@ for (( i = 0; i < ${CLUSTER_SIZE}; i++ )); do
 done
 
 # Docker image options:
-USE_LOCAL_IMAGE=false
-LOCAL_NATS_SERVER_REPO="../nats-server"
+# NATS_SERVER_LOCAL_SOURCE="../nats-server.git"
+UPSTREAM_IMAGE_TAG="nats:alpine"
+LOCAL_IMAGE_REPO='localhost:5001'
+LOCAL_IMAGE_TAG='nats:local'
 
 function fail()
 {
@@ -98,19 +100,6 @@ function cleanup()
   else
     k3d cluster delete "${K3D_CLUSTER_NAME}"
   fi
-}
-
-
-NATS_LOCAL_IMAGE="localhost:5001/nats:local"
-function load_latest_nats_image() {
-  docker pull nats:alpine
-  docker tag nats:alpine $NATS_LOCAL_IMAGE
-  docker push $NATS_LOCAL_IMAGE
-}
-
-function build_local_nats_image() {
-  docker build $LOCAL_NATS_SERVER_REPO -f ./Dockerfile -t $NATS_LOCAL_IMAGE
-  docker push $NATS_LOCAL_IMAGE
 }
 
 function mayhem()
@@ -203,6 +192,10 @@ test -f "${K3D_CLUSTER_CONFIG}" || fail "not found: ${K3D_CLUSTER_CONFIG}"
 test -d "${HELM_CHART_CONFIG}" || fail "not found: ${HELM_CHART_CONFIG}"
 test -d "${TESTS_DIR}" || fail "not found: ${TESTS_DIR}"
 
+if [[ -n "${NATS_SERVER_LOCAL_SOURCE}" ]] ; then
+  test -d "${NATS_SERVER_LOCAL_SOURCE}" || fail "not found: ${NATS_SERVER_LOCAL_SOURCE}"
+fi
+
 # Build the tests binary
 pushd "${TESTS_DIR}" >/dev/null
 go build -o "${TESTS_EXE_NAME}" || fail "Build failed"
@@ -222,15 +215,18 @@ else
   k3d cluster create --config ${K3D_CLUSTER_CONFIG}
 fi
 
-echo "Use Local Docker Image? ${USE_LOCAL_IMAGE}"
-# Load NATS docker image
-if [[ "$USE_LOCAL_IMAGE" = true ]] ; then
-  # TODO: pass the nats-server path and build a local docker image
-  echo "Using local nats image built from ${LOCAL_NATS_SERVER_REPO}"
-  build_local_nats_image
+# Use upstream release image of nats, or build one from local source?
+if [[ -n "${NATS_SERVER_LOCAL_SOURCE}" ]] ; then
+  echo "Building server image from source: ${NATS_SERVER_LOCAL_SOURCE}"
+  # Build image and push it to K3D repository
+  docker build "${NATS_SERVER_LOCAL_SOURCE}" -f ./Dockerfile -t "${LOCAL_IMAGE_REPO}/${LOCAL_IMAGE_TAG}"
+  docker push "${LOCAL_IMAGE_REPO}/${LOCAL_IMAGE_TAG}"
 else
-  echo "Pulling nats:latest from Dockerhub"
-  load_latest_nats_image
+  echo "Pulling ${UPSTREAM_IMAGE_TAG} from Dockerhub"
+  # Pull upstream image and push it to K3D repository
+  docker pull "${UPSTREAM_IMAGE_TAG}"
+  docker tag "${UPSTREAM_IMAGE_TAG}" "${LOCAL_IMAGE_REPO}/${LOCAL_IMAGE_TAG}"
+  docker push "${LOCAL_IMAGE_REPO}/${LOCAL_IMAGE_TAG}"
 fi
 
 if helm status "${HELM_CHART_NAME}"; then
