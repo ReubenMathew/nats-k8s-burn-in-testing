@@ -103,8 +103,8 @@ function cleanup()
 
 NATS_LOCAL_IMAGE="localhost:5001/nats:local"
 function load_latest_nats_image() {
-  docker pull nats:latest
-  docker tag nats:latest $NATS_LOCAL_IMAGE
+  docker pull nats:alpine
+  docker tag nats:alpine $NATS_LOCAL_IMAGE
   docker push $NATS_LOCAL_IMAGE
 }
 
