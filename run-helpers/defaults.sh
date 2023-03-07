@@ -28,3 +28,7 @@ HELM_CHART_CONFIG="./nats"
 UPSTREAM_HELM_CHART="https://nats-io.github.io/k8s/helm/charts/"
 HELM_CHART_NAMESPACE="nats"
 HELM_CHART_VALUES="${HELM_CHART_CONFIG}/values.yaml"
+
+# Mayhem
+MAYHEM_DIR="./mayhem"
+MAYHEM_PIDS_DIR="./.mayhem-state"

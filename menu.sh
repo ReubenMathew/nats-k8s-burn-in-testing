@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Main switch statement that parses arguments.
-# sub-commands are: check, start, stop, mayhem, reset, test, run, help
+# sub-commands are: check, start, stop, mayhem, stop-mayhem, reset, test, run, help
 
 # Print an error message to stderr and exits with a non-zero status.
 function fail()
@@ -17,6 +17,7 @@ source_files=(
     "./run-helpers/helpers-image.sh"
     "./run-helpers/helpers-k3d.sh"
     "./run-helpers/helpers-helm.sh"
+    "./run-helpers/helpers-mayhem.sh"
 )
 for source_file in "${source_files[@]}"; do
     source "${source_file}" || fail "Failed to source ${source_file}"
@@ -64,7 +65,27 @@ function main()
             stop_k3d_cluster
             ;;
         mayhem)
-            mayhem
+            # Check if the environment is sane
+            check_files_and_dirs
+            check_bin_dependencies
+            check_docker_running
+
+            # Required argument: name of mayhem agent to start
+            if [[ -z "$2" ]]; then
+                fail "Missing argument: name of mayhem agent to start"
+            fi
+
+            # Start a 'mayhem agent', which injects random failures into the environment
+            mayhem "$2"
+            ;;
+        stop-mayhem)
+            # Check if the environment is sane
+            check_files_and_dirs
+            check_bin_dependencies
+            check_docker_running
+
+            # Stop all running mayhem agents
+            stop_mayhem
             ;;
         reset)
             reset
@@ -79,9 +100,10 @@ function main()
             echo "Usage: $0 {check|start|stop|mayhem|reset|test|run|help}"
             # Print a summary for each sub-command and its arguments
             echo "check: Check if the environment is ready to run the tests"
-            echo "start: Start the test environment"
+            echo "start [nats-server_source_dir]: Start the test environment"
             echo "stop: Stop the test environment"
             echo "mayhem <name>: Start a 'mayhem agent', which injects random failures into the environment"
+            echo "stop-mayhem <name>: Stop all running mayhem agents"
             echo "reset: Stop then start the environment"
             echo "test <name> [duration]: Run the specified test client"
             echo "run <test_name> <mayhem_name> [duration]: Start the test environment, run a test, stop the environment"

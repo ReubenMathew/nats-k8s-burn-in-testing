@@ -18,10 +18,13 @@ function check_files_and_dirs()
     local dirs=(
         "${HELM_CHART_CONFIG}"
         "${TESTS_DIR}"
+        "${MAYHEM_DIR}"
     )
     for dir in "${dirs[@]}"; do
         test -d "${dir}" || fail "Not found: ${dir}"
     done
+
+    mkdir -p "${MAYHEM_PIDS_DIR}" || fail "Failed to create directory: ${MAYHEM_PIDS_DIR}"
 }
 
 function check_bin_dependencies()
