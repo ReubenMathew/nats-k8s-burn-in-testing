@@ -19,6 +19,7 @@ function check_files_and_dirs()
         "${HELM_CHART_CONFIG}"
         "${TESTS_DIR}"
         "${MAYHEM_DIR}"
+        "${TESTS_DIR}"
     )
     for dir in "${dirs[@]}"; do
         test -d "${dir}" || fail "Not found: ${dir}"

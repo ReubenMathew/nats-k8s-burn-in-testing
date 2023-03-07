@@ -32,3 +32,8 @@ HELM_CHART_VALUES="${HELM_CHART_CONFIG}/values.yaml"
 # Mayhem
 MAYHEM_DIR="./mayhem"
 MAYHEM_PIDS_DIR="./.mayhem-state"
+
+# Tests
+TESTS_DIR="./tests"
+TEST_BIN="test.exe"
+DEFAULT_TEST_DURATION="5s"

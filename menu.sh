@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Main switch statement that parses arguments.
-# sub-commands are: check, start, stop, mayhem, stop-mayhem, reset, test, run, help
+# sub-commands are: check, start, stop, mayhem, stop-mayhem, test, run, help
 
 # Print an error message to stderr and exits with a non-zero status.
 function fail()
@@ -18,6 +18,7 @@ source_files=(
     "./run-helpers/helpers-k3d.sh"
     "./run-helpers/helpers-helm.sh"
     "./run-helpers/helpers-mayhem.sh"
+    "./run-helpers/helpers-test.sh"
 )
 for source_file in "${source_files[@]}"; do
     source "${source_file}" || fail "Failed to source ${source_file}"
@@ -61,19 +62,21 @@ function main()
             check_files_and_dirs
             check_bin_dependencies
             check_docker_running
+            # Stop any running mayhem agents
+            stop_mayhem
             # Stop K3D virtual cluster
             stop_k3d_cluster
             ;;
         mayhem)
-            # Check if the environment is sane
-            check_files_and_dirs
-            check_bin_dependencies
-            check_docker_running
-
             # Required argument: name of mayhem agent to start
             if [[ -z "$2" ]]; then
                 fail "Missing argument: name of mayhem agent to start"
             fi
+
+            # Check if the environment is sane
+            check_files_and_dirs
+            check_bin_dependencies
+            check_docker_running
 
             # Start a 'mayhem agent', which injects random failures into the environment
             mayhem "$2"
@@ -87,14 +90,28 @@ function main()
             # Stop all running mayhem agents
             stop_mayhem
             ;;
-        reset)
-            reset
-            ;;
         test)
-            test
+            # Required argument: name of test to run
+            if [[ -z "$2" ]]; then
+                fail "Missing argument: name of test run"
+            fi
+            # Optional argument: duration of test
+            duration="${3:-${DEFAULT_TEST_DURATION}}"
+
+            # Check if the environment is sane
+            check_files_and_dirs
+            check_bin_dependencies
+            check_docker_running
+            # Build the test binary
+            build_test
+            run_test "$2" "${duration}"
             ;;
         run)
-            run
+            echo "Not implemented"
+            exit 1
+            # TODO this mode is meant for CI
+            # It starts the test environment, runs a test, stops the environment
+            # It also starts a mayhem agent with a configurable delay
             ;;
         help)
             echo "Usage: $0 {check|start|stop|mayhem|reset|test|run|help}"
@@ -104,7 +121,6 @@ function main()
             echo "stop: Stop the test environment"
             echo "mayhem <name>: Start a 'mayhem agent', which injects random failures into the environment"
             echo "stop-mayhem <name>: Stop all running mayhem agents"
-            echo "reset: Stop then start the environment"
             echo "test <name> [duration]: Run the specified test client"
             echo "run <test_name> <mayhem_name> [duration]: Start the test environment, run a test, stop the environment"
             exit 0

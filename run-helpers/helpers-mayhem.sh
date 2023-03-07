@@ -4,7 +4,7 @@ function mayhem()
 {
     local mayhem_name="$1"
     local mayhem_file="${MAYHEM_DIR}/${mayhem_name}.sh"
-    local mayhem_log="${MAYHEM_DIR}/${mayhem_name}.log"
+    local mayhem_log="${MAYHEM_PIDS_DIR}/${mayhem_name}.log"
 
     test -f "${mayhem_file}" || fail "Not found: ${mayhem_file}"
 
