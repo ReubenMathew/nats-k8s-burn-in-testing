@@ -24,5 +24,6 @@ function run_test()
     echo "🏃‍♀️  Running test: ${test_name} (duration: ${duration})"
 
     # Run the test
+
     "${test_exec}" --wipe --test "${test_name}" --duration "${duration}" || fail "Test failed: ${test_name}"
 }

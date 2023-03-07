@@ -1,8 +1,5 @@
 # This file contains default environment variables and it is sourced by the main script
 
-# Local files and directories
-TESTS_DIR="./tests"
-
 # Tools required to be installed on the host
 BIN_DEPENDENCIES=(
     "docker"
@@ -32,6 +29,7 @@ HELM_CHART_VALUES="${HELM_CHART_CONFIG}/values.yaml"
 # Mayhem
 MAYHEM_DIR="./mayhem"
 MAYHEM_PIDS_DIR="./.mayhem-state"
+DEFAULT_MAYHEM_DELAY="3" #Seconds
 
 # Tests
 TESTS_DIR="./tests"

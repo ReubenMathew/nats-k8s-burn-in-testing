@@ -3,31 +3,52 @@
 function mayhem()
 {
     local mayhem_name="$1"
+    local delay="$2"
     local mayhem_file="${MAYHEM_DIR}/${mayhem_name}.sh"
-    local mayhem_log="${MAYHEM_PIDS_DIR}/${mayhem_name}.log"
+    local log_file="${MAYHEM_PIDS_DIR}/mayhem_${mayhem_name}.log"
 
     test -f "${mayhem_file}" || fail "Not found: ${mayhem_file}"
 
-    echo "🤯  Running mayhem: ${mayhem_name}"
+
+    _mayhem "${mayhem_file}" "${delay}" >> "${log_file}" 2>&1 &
+    local child_pid="$!"
+
+    echo "🤯  Forked mayhem: ${mayhem_name} (pid: ${child_pid}) (starts in ${delay} seconds)"
+
+    local pid_file="${MAYHEM_PIDS_DIR}/mayhem_${child_pid}.pid"
+    echo "${child_pid}" > "${pid_file}"
+}
+
+# This executed as a forked process
+function _mayhem() {
+    local mayhem_file="$1"
+    local delay="$2"
 
     # Source mayhem file as background process and write its pid to file
     # shellcheck disable=SC1090
-    source "${mayhem_file}" 2>&1 >> "${mayhem_log}"  &
-    local pid=$!
-    echo "$pid" > "${MAYHEM_PIDS_DIR}/${mayhem_name}_${pid}.pid"
+    source "${mayhem_file}" || "Failed to source mayhem file: ${mayhem_file}"
 
-    echo "😵‍💫  Started mayhem ${mayhem_name} (pid: ${pid}, logs to: ${mayhem_log})"
+    # Wait for the given delay
+    sleep "${delay}"
+
+    # If cleanup function is defined for the given mayhem
+    if [ "$(type -t cleanup)" = "function" ]; then
+        # Register cleanup function to be called on exit
+        # FIXME: output from clean goes to parent terminal, not logfile
+        trap cleanup EXIT
+    fi
+
+    # Run the mayhem agent
+    run
+
+    exit 0
 }
 
 function stop_mayhem()
 {
-    # If any pid file exists
-    if [ ! -n "$(ls -A "${MAYHEM_PIDS_DIR}")" ]; then
-        return
-    fi
 
     # For each pid file, stop the corresponding mayhem process
-    for pid_file in "${MAYHEM_PIDS_DIR}"/*.pid; do
+    for pid_file in $(find ${MAYHEM_PIDS_DIR} -name '*.pid' -print0 | xargs -0); do
         local pid=$(cat "${pid_file}")
         if  kill -0 "${pid}" >/dev/null 2>&1; then
             echo "🔫  Stopping mayhem with pid: ${pid}"

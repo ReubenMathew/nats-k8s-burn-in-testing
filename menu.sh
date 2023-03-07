@@ -72,6 +72,9 @@ function main()
             if [[ -z "$2" ]]; then
                 fail "Missing argument: name of mayhem agent to start"
             fi
+            # Optional argument: delay before starting the mayhem agent
+            delay="${3:-${DEFAULT_MAYHEM_DELAY}}"
+
 
             # Check if the environment is sane
             check_files_and_dirs
@@ -79,7 +82,7 @@ function main()
             check_docker_running
 
             # Start a 'mayhem agent', which injects random failures into the environment
-            mayhem "$2"
+            mayhem "$2" "${delay}"
             ;;
         stop-mayhem)
             # Check if the environment is sane
@@ -119,7 +122,7 @@ function main()
             echo "check: Check if the environment is ready to run the tests"
             echo "start [nats-server_source_dir]: Start the test environment"
             echo "stop: Stop the test environment"
-            echo "mayhem <name>: Start a 'mayhem agent', which injects random failures into the environment"
+            echo "mayhem <name> [delay_seconds]: Start a 'mayhem agent', which injects random failures into the environment"
             echo "stop-mayhem <name>: Stop all running mayhem agents"
             echo "test <name> [duration]: Run the specified test client"
             echo "run <test_name> <mayhem_name> [duration]: Start the test environment, run a test, stop the environment"
