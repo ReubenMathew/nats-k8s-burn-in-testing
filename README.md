@@ -1,4 +1,34 @@
-# K8s NATS Burn-in Testing
+# Failground
+
+## A failure testing playground
+
+Failground is a utility to test NATS server and client in the presence of failures.
+
+Failground can be employed in different scenarios.
+
+ * Developers: testing local changes to NATS client and server in the presence of failures
+ * CI: run a test matrix with combinations of tests and failure modes, this is suitable for:
+   * Release qualification
+   * Long-running stress tests
+
+Failground runs in a virtualized environment, therefore it is not suitable for performance measurements
+
+### Notable features
+
+ * Easy to add new tests
+ * Easy to add new mayhem modes
+ * Easy to run against local development version of NATS server or client
+
+---
+
+## Overview
+
+Failground is made to be run on a developer's laptop or in a CI pipeline.
+
+1. K3D creates a virtual Kubernetes cluster using Docker
+2. Helm deploys a NATS cluster
+3. (optional) one or more mayhem agent start injecting failures
+4. A test workload is run from the host against the NATS cluster
 
 ### Requirements
 - `k3d`
@@ -7,137 +37,145 @@
 - `go`
 - `helm`
 
-# Using a locally built `nats-server` image
-The included helm chart pulls a `nats-server` image from a locally created registry. By default, this image is `nats:latest` found on [Dockerhub](https://hub.docker.com/_/nats). The `nats:latest` image is pulled, re-tagged and pushed to the local image registry, provisioned by K3D.
+---
 
-Modifying the `USE_LOCAL_IMAGE` value in `./run-test.sh` will instead build the `nats-server` image from source and push it to the local registry for helm to use instead. The path location of your `nats-server` repository can be modified through the `LOCAL_NATS_SERVER_REPO` value (also found in `./run-test.sh`). 
+## Example usage
 
-## Instructions
-1. Clone `nats-server` onto your machine
-2. Enable `USE_LOCAL_IMAGE` in `./run-test.sh`
-3. Change the value of `LOCAL_NATS_SERVER_REPO` to where you cloned the `nats-server` repository
+The following is an example session with a developer interacting with failground.
 
-# Mayhem modes
-
-Different "mayhem" modes are currently supported
-
-## `rolling_restart`
-
-Triggers rolling restart of all servers at regular intervals.
-
-This restart is gracefully rolled out by the controller, which monitors pods state and respects the disruption budget for the stateful set.
-
-## `random_reload`
-
-At random intervals, a server is randomly selected, and a configuration reload is triggered (SIGHUP).
-
-## `random_hard_kill`
-
-At random intervals, a server is randomly selected and killed with SIGKILL.
-
-## `slow_network`
-
-Configures traffic shaping rules to simulate network latency between servers
-
-## `lossy_network`
-
-Configures traffic shaping rules to simulate network packet loss between servers
-
-## `none`
-
-Does not cause any mayhem
-
-# Tests
-
-## `queue-group-consumer`
-
-Tests (explicit) durable queue group with `N` consumer (on separate connections).
-
-The test consists of:
+### Check dependencies
 
 ```
-for i in M {
-  publish (i)
-  waitUntilConsumedAndAcked (i)
-}
+./failground.sh check
 ```
 
-At any given moment, there is only 1 message in-flight and should only be consumed by one subscriber. After a message is published the consumer is expected to receive it before publishing the next message.
+Verifies that all required dependencies are installed (does not attempt to install them or make any other modification to your system)
 
-The actions of publishing and consuming are resilient to transient failures, meaning they are retried until successful.
-
-The test may fail if:
-- one of the operations is retried unsuccessfully for too long
-- a published message is not consumed within a specified amount of time
-- a previously published message is received out of order
-
-## `durable-pull-consumer`
-
-Tests durable consumer on a replicated stream.
-
-The test consists of:
+### Bring up the virtual cluster
 
 ```
-for i in N {
-  publish (i)
-  consume (i)
-  verify i
-  ack (i)
-}
+./failground.sh start ../nats-server.git
 ```
 
-At any given moment, there is only 1 message in-flight.
-After publishing message `i`, the consumer expects to receive it.
+Build the nats-server binary locally from the given location, then start a NATS cluster.
 
-The client is resilient to transient failures. That is, if an operation fails, it will be retried.
+If the source path is omitted, the latest release image `nats:alpine` is used.
 
-The test may fail if:
- - one of the operations is retried unsuccessfully for too long
- - the message received does not match the message published last
-
-## `kv-cas`
-
-Tests consistency on a replicated KeyValue.
-
-The test consists of:
+### Add mayhem
 
 ```
-for i in N {
-  read(k)
-  verify k
-  update(k)
-}
+./failground mayhem slow-network
+./failground mayhem random-reload
 ```
 
-A single client is performing all operations, therefore it has a perfect view of each key, value and revision.
+Start two "mayhem" agents:
+ * The first sets a small random delay on the network interface of all (virtual) hosts running NATS server, thus simulating a network with some latency
+ * The second causes the servers to reload (using SIGHUP) at random intervals
 
-The client is resilient to transient failures and will retry as needed.
+Mayhem agents log to `mayhem.log`
 
-The test may fail if:
-- the value retrieved does not match the value committed last
-- an operation keeps failing for too long
-
-## `add-remove-streams`
-
-Test adding and removing replicated streams.
-
-The tests consists of:
+It is possible to delay the start of a mayhem agent (for example to ensure the test has time to initialize cleanly before anything goes wrong). The `mayhem` command takes an optional argument for this reason, e.g.:
 
 ```
-for i in N {
-  one of {
-    add stream
-    delete stream
-    list streams
-  }
-  verify streams
-}
+./failground mayhem random-hard-kill 30
 ```
 
-A single client is performing all operations and has a perfect view of what the current streams should be.
+Which means: in 30 seconds, start killing (SIGKILL) servers at random intervals.
 
-The client is resilient to transient failures and will retry as needed.
+### Run a test
 
-The test may fail if:
-- the list of existing streams does not match the expected
-- an operation keeps failing for too long
+```
+./failground test kv-cas 120s
+```
+
+Start the test workload named `kv-cas` and declare success if it could run successfully for 120 seconds.
+
+In this case, `kv-cas` does operations using the KeyValue's Update API (Compare and Swap).
+And it checks that successfully committed values are not lost.
+
+### Stop mayhem
+```
+./failground stop-mayhem
+```
+
+Stop any mayhem agent which may be running in background.
+
+### Dump cluster state
+
+```
+./failground dump
+```
+
+Dumps cluster diagnostic information into a timestamped folder inside `dump/`
+
+### Bring down the environment
+
+```
+./failground stop
+```
+
+Stops the virtual cluster
+
+---
+
+## Mayhem agents
+
+Mayhem agents are simple, take a look in the `mayhem/` directory.
+
+### `lossy-network`
+
+Introduces a random amount of packet loss in the virtual servers network interfaces
+
+Cannot be combined with other `*-network` agents
+
+### `slow-network`
+
+Introduces a random amount of latency and jitter in the virtual servers network interfaces
+
+Cannot be combined with other `*-network` agents
+
+### `random-hard-kill`
+
+At random intervals, choose a random NATS server and kill it via SIGKILL
+
+### `random-reload`
+
+At random intervals, choose a random NATS server and trigger a configuration reload with SIGHUP
+
+### `rolling-restart`
+
+At random intervals, trigger a Kubernetes rolling restart for the entire cluster
+
+### `noop`
+
+This agent only prints messages to the log, it's used for testing
+
+---
+
+## Test workloads
+
+Tests are self-contained *go* programs in the `tests/` directory.
+
+Tests must be written to run arbitrarily long, and they need to be fault-tolerant:
+ - Retry operations that might fail
+ - Handle disconnections and reconnections
+ - Handle timeouts
+ - ...
+
+
+### `add-remove-streams`
+
+A single client creates and deletes streams.
+It verifies that successfully created streams still exist, and deleted streams don't reappear later.
+
+### `durable-pull-consumer`
+
+A single client publishing one message to a stream, than consuming and verifying the same message using a durable consumer.
+
+### `queue-group-consumer`
+
+A single client publishing one message to a queue, than verifying that it gets consumed by at most one of the clients subscribed to the queue.
+
+### `kv-cas`
+
+A single client performing CAS updates on a small set of keys and verifying committed values are not lost.

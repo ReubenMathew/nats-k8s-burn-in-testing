@@ -27,3 +27,6 @@ go.work
 # Chart dependencies
 **/charts/*.tgz
 
+# Mayhem pid directory
+.mayhem-pids
+mayhem.log
